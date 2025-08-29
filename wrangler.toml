@@ -1,15 +1,13 @@
 name = "website"  # 你的Worker名称
 compatibility_date = "2025-08-29"  # 使用当前日期
+main = "src/index.js"  # API入口文件（顶级配置）
 
-# 静态资源配置（指向根目录，因为index.html在根目录）
+# 静态资源配置
 [site]
-bucket = "."  # 静态文件所在目录（根目录）
-entry-point = "workers-site"  # 固定值，处理静态资源
+bucket = "./public"  # 静态文件所在目录（指向public目录，因为你的HTML/CSS/JS在那里）
+# 删除entry-point，现代版本不需要
 
-# API入口文件（必须存在，统一处理/api请求）
-main = "src/index.js"
-
-# KV存储配置（如果需要）
+# KV存储配置
 [[kv_namespaces]]
 binding = "SITE_MONITOR_KV"
-id = "website-monitor"  # 替换为实际ID
+id = "59341ff429e646e9910d050e87cb855b"  # 替换为实际KV命名空间ID（在Cloudflare控制台获取）
