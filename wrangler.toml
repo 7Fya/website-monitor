@@ -1,0 +1,15 @@
+name = "website"  # 你的Worker名称
+compatibility_date = "2025-08-29"  # 使用当前日期
+
+# 静态资源配置（指向根目录，因为index.html在根目录）
+[site]
+bucket = "."  # 静态文件所在目录（根目录）
+entry-point = "workers-site"  # 固定值，处理静态资源
+
+# API入口文件（必须存在，统一处理/api请求）
+main = "src/index.js"
+
+# KV存储配置（如果需要）
+[[kv_namespaces]]
+binding = "SITE_MONITOR_KV"
+id = "website-monitor"  # 替换为实际ID
