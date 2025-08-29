@@ -1,4 +1,4 @@
-<// 用于检查网站状态的Serverless函数
+// 用于检查网站状态的Serverless函数
 // 在Vercel上，此文件应放在/api目录下
 // 在Cloudflare Pages上，此文件应放在/functions/api目录下
 
