@@ -1,287 +1,121 @@
-<document.addEventListener('DOMContentLoaded', function() {
-  // DOM元素引用
-  const mobileMenuButton = document.getElementById('mobile-menu-button');
-  const mobileMenu = document.getElementById('mobile-menu');
-  const navbar = document.getElementById('navbar');
-  const addSiteBtns = [
-    document.getElementById('add-site-btn'),
-    document.getElementById('mobile-add-site-btn'),
-    document.getElementById('empty-state-add-btn')
-  ];
-  const addSiteModal = document.getElementById('add-site-modal');
-  const modalContent = document.getElementById('modal-content');
-  const closeModal = document.getElementById('close-modal');
-  const cancelAdd = document.getElementById('cancel-add');
-  const siteForm = document.getElementById('site-form');
-  const modalTitle = document.getElementById('modal-title');
-  const submitSiteBtn = document.getElementById('submit-site');
-  const refreshDataBtn = document.getElementById('refresh-data');
-  const timeRangeSelect = document.getElementById('time-range-select');
-  const siteSearchInput = document.getElementById('site-search');
-  
-  // 状态变量
+document.addEventListener('DOMContentLoaded', function() {
+  // 全局变量
+  let sitesSearchInput = document.getElementById('site-search');
   let sites = [];
   let currentPage = 1;
   const sitesPerPage = 5;
-  let responseTimeChart = null;
-  let availabilityChart = null;
-  let desktopChart = null;
-  let mobileChart = null;
-  let tabletChart = null;
+  let responseTimeChart, availabilityChart;
+  let timeRangeSelect = document.getElementById('time-range-select');
   
+  // DOM元素
+  const addSiteModal = document.getElementById('add-site-modal');
+  const modalContent = document.getElementById('modal-content');
+  const modalTitle = document.getElementById('modal-title');
+  const submitSiteBtn = document.getElementById('submit-site');
+  const closeModalBtn = document.getElementById('close-modal');
+  const cancelAddBtn = document.getElementById('cancel-add');
+  const siteForm = document.getElementById('site-form');
+  const prevPageBtn = document.getElementById('prev-page');
+  const nextPageBtn = document.getElementById('next-page');
+  const currentPageBtn = document.getElementById('current-page');
+  const addSiteButton = document.getElementById('add-site-btn');
+  const mobileAddSiteBtn = document.getElementById('mobile-add-site-btn');
+  const mobileMenuButton = document.getElementById('mobile-menu-button');
+  const mobileMenu = document.getElementById('mobile-menu');
+  const refreshDataBtn = document.getElementById('refresh-data');
+  const intervalButtons = document.querySelectorAll('[data-interval]');
+
   // 初始化
-  init();
-  
-  // 初始化函数
   async function init() {
-    // 加载保存的网站
+    // 加载网站数据
     await loadSites();
-    // 渲染网站列表
-    renderSitesTable();
-    // 更新统计数据
-    updateStatistics();
+    
     // 初始化图表
     initCharts();
-    // 设置事件监听器
-    setupEventListeners();
+    
+    // 渲染网站列表
+    renderSitesTable();
+    
+    // 更新统计数据
+    updateStatistics();
     
     // 开始定期检查
     startPeriodicChecks();
+    
+    // 绑定事件监听器
+    bindEventListeners();
   }
   
-  // 设置事件监听器
-  function setupEventListeners() {
-    // 移动端菜单切换
-    mobileMenuButton.addEventListener('click', () => {
-      mobileMenu.classList.toggle('hidden');
-    });
+  // 绑定事件监听器
+  function bindEventListeners() {
+    // 搜索框事件
+    siteSearchInput.addEventListener('input', debounce(renderSitesTable, 300));
     
-    // 导航栏滚动效果
-    window.addEventListener('scroll', () => {
-      if (window.scrollY > 10) {
-        navbar.classList.add('py-2', 'shadow');
-        navbar.classList.remove('py-3');
-      } else {
-        navbar.classList.add('py-3');
-        navbar.classList.remove('py-2', 'shadow');
-      }
-    });
+    // 模态框事件
+    addSiteButton.addEventListener('click', openModal);
+    mobileAddSiteBtn.addEventListener('click', openModal);
+    closeModalBtn.addEventListener('click', closeModal);
+    cancelAddBtn.addEventListener('click', closeModal);
+    siteForm.addEventListener('submit', handleFormSubmit);
     
-    // 打开添加网站模态框
-    addSiteBtns.forEach(btn => {
-      if (btn) {
-        btn.addEventListener('click', openModal);
-      }
-    });
+    // 分页事件
+    prevPageBtn.addEventListener('click', goToPrevPage);
+    nextPageBtn.addEventListener('click', goToNextPage);
     
-    // 关闭模态框
-    closeModal.addEventListener('click', closeModalFunc);
-    cancelAdd.addEventListener('click', closeModalFunc);
-    
-    // 点击模态框外部关闭
-    addSiteModal.addEventListener('click', (e) => {
-      if (e.target === addSiteModal) {
-        closeModalFunc();
-      }
-    });
-    
-    // 表单提交
-    siteForm.addEventListener('submit', async (e) => {
-      e.preventDefault();
-      await handleFormSubmit();
-    });
+    // 移动端菜单
+    mobileMenuButton.addEventListener('click', toggleMobileMenu);
     
     // 刷新数据
-    refreshDataBtn.addEventListener('click', async () => {
-      showNotification('正在刷新数据...', 'info');
-      refreshDataBtn.innerHTML = '<i class="fa fa-spinner fa-spin text-gray-600"></i>';
-      
-      await refreshAllSitesStatus();
-      updateStatistics();
-      updateCharts();
-      
-      refreshDataBtn.innerHTML = '<i class="fa fa-refresh text-gray-600"></i>';
-      showNotification('数据已更新', 'success');
-    });
+    refreshDataBtn.addEventListener('click', refreshAllSitesStatus);
     
     // 时间范围选择
     timeRangeSelect.addEventListener('change', updateCharts);
     
-    // 网站搜索
-    siteSearchInput.addEventListener('input', debounce(() => {
-      currentPage = 1;
-      renderSitesTable();
-    }, 300));
-    
-    // 分页按钮
-    document.getElementById('prev-page').addEventListener('click', () => {
-      if (currentPage > 1) {
-        currentPage--;
-        renderSitesTable();
-      }
-    });
-    
-    document.getElementById('next-page').addEventListener('click', () => {
-      const totalPages = Math.ceil(getFilteredSites().length / sitesPerPage);
-      if (currentPage < totalPages) {
-        currentPage++;
-        renderSitesTable();
-      }
-    });
-    
-    // 时间间隔选择
-    document.querySelectorAll('[data-interval]').forEach(btn => {
-      btn.addEventListener('click', (e) => {
-        document.querySelectorAll('[data-interval]').forEach(b => {
-          b.classList.remove('bg-primary', 'text-white');
-          b.classList.add('bg-gray-light', 'text-gray-600', 'hover:bg-gray-200');
-        });
-        
-        e.target.classList.add('bg-primary', 'text-white');
-        e.target.classList.remove('bg-gray-light', 'text-gray-600', 'hover:bg-gray-200');
-        
+    // 图表时间间隔选择
+    intervalButtons.forEach(btn => {
+      btn.addEventListener('click', function() {
+        intervalButtons.forEach(b => b.classList.remove('bg-primary', 'text-white'));
+        intervalButtons.forEach(b => b.classList.add('bg-gray-light', 'text-gray-600', 'hover:bg-gray-200'));
+        this.classList.remove('bg-gray-light', 'text-gray-600', 'hover:bg-gray-200');
+        this.classList.add('bg-primary', 'text-white');
         updateCharts();
       });
     });
   }
   
-  // 打开模态框
-  function openModal() {
-    // 重置表单
-    siteForm.reset();
-    document.getElementById('edit-site-id').value = '';
-    modalTitle.textContent = '添加新网站';
-    submitSiteBtn.textContent = '添加网站';
-    submitSiteBtn.innerHTML = '添加网站';
-    
-    addSiteModal.classList.remove('hidden');
-    addSiteModal.classList.add('flex');
-    setTimeout(() => {
-      modalContent.classList.remove('scale-95', 'opacity-0');
-      modalContent.classList.add('scale-100', 'opacity-100');
-    }, 10);
-  }
-  
-  // 关闭模态框
-  function closeModalFunc() {
-    modalContent.classList.remove('scale-100', 'opacity-100');
-    modalContent.classList.add('scale-95', 'opacity-0');
-    setTimeout(() => {
-      addSiteModal.classList.remove('flex');
-      addSiteModal.classList.add('hidden');
-    }, 300);
-  }
-  
-  // 处理表单提交
-  async function handleFormSubmit() {
-    const siteId = document.getElementById('edit-site-id').value;
-    const name = document.getElementById('site-name').value;
-    const url = document.getElementById('site-url').value;
-    const interval = parseInt(document.getElementById('check-interval').value);
-    const responseThreshold = parseInt(document.getElementById('response-threshold').value);
-    const notifyEmail = document.getElementById('notify-email').checked;
-    const notifySms = document.getElementById('notify-sms').checked;
-    const notifyInapp = document.getElementById('notify-inapp').checked;
-    
-    // 验证URL
-    try {
-      new URL(url);
-    } catch (e) {
-      showNotification('请输入有效的URL', 'error');
-      return;
-    }
-    
-    if (siteId) {
-      // 更新现有网站
-      const index = sites.findIndex(s => s.id === siteId);
-      if (index !== -1) {
-        sites[index] = {
-          ...sites[index],
-          name,
-          url,
-          interval,
-          responseThreshold,
-          notifications: {
-            email: notifyEmail,
-            sms: notifySms,
-            inapp: notifyInapp
-          }
-        };
-        
-        await saveSites();
-        await checkSiteStatus(siteId);
-        showNotification('网站信息已更新', 'success');
-      }
-    } else {
-      // 添加新网站
-      const newSite = {
-        id: generateId(),
-        name,
-        url,
-        interval,
-        responseThreshold,
-        status: 'unknown',
-        responseTime: 0,
-        lastChecked: null,
-        history: [],
-        notifications: {
-          email: notifyEmail,
-          sms: notifySms,
-          inapp: notifyInapp
-        },
-        createdAt: new Date().toISOString()
-      };
-      
-      sites.push(newSite);
-      await saveSites();
-      await checkSiteStatus(newSite.id);
-      showNotification('网站已添加到监测列表', 'success');
-    }
-    
-    // 更新UI
-    renderSitesTable();
-    updateStatistics();
-    updateCharts();
-    closeModalFunc();
-  }
-  
-  // 加载保存的网站
+  // 加载网站数据
   async function loadSites() {
     try {
-      // 尝试从API获取
+      // 尝试从API加载
       const response = await fetch('/api/sites');
       if (response.ok) {
-        const data = await response.json();
-        sites = data || [];
-      } else {
-        // 回退到localStorage
-        const saved = localStorage.getItem('monitoringSites');
-        sites = saved ? JSON.parse(saved) : [];
+        sites = await response.json();
+        return;
       }
     } catch (error) {
-      console.error('Failed to load sites from API, falling back to localStorage:', error);
-      const saved = localStorage.getItem('monitoringSites');
-      sites = saved ? JSON.parse(saved) : [];
+      console.log('API加载失败，尝试从localStorage加载:', error);
     }
+    
+    // 从localStorage加载备份
+    const saved = localStorage.getItem('monitoring_sites');
+    sites = saved ? JSON.parse(saved) : [];
   }
   
-  // 保存网站列表
+  // 保存网站数据
   async function saveSites() {
     try {
       // 尝试保存到API
       await fetch('/api/sites', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(sites)
       });
     } catch (error) {
-      console.error('Failed to save sites to API, falling back to localStorage:', error);
+      console.log('API保存失败，保存到localStorage:', error);
     }
     
-    // 同时保存到localStorage作为备份
-    localStorage.setItem('monitoringSites', JSON.stringify(sites));
+    // 保存到localStorage备份
+    localStorage.setItem('monitoring_sites', JSON.stringify(sites));
   }
   
   // 渲染网站表格
@@ -289,17 +123,24 @@
     const tableBody = document.getElementById('sites-table-body');
     const filteredSites = getFilteredSites();
     const totalPages = Math.ceil(filteredSites.length / sitesPerPage);
+    
+    // 确保当前页有效
+    if (currentPage > totalPages && totalPages > 0) {
+      currentPage = totalPages;
+    }
+    
+    // 计算分页范围
     const startIndex = (currentPage - 1) * sitesPerPage;
     const paginatedSites = filteredSites.slice(startIndex, startIndex + sitesPerPage);
     
     // 更新分页信息
     document.getElementById('pagination-info').textContent = 
       `显示 ${startIndex + 1} 到 ${Math.min(startIndex + sitesPerPage, filteredSites.length)}，共 ${filteredSites.length} 个网站`;
-    document.getElementById('current-page').textContent = currentPage;
-    document.getElementById('prev-page').disabled = currentPage === 1;
-    document.getElementById('next-page').disabled = currentPage >= totalPages;
+    currentPageBtn.textContent = currentPage;
+    prevPageBtn.disabled = currentPage === 1;
+    nextPageBtn.disabled = currentPage >= totalPages;
     
-    // 显示或隐藏分页容器
+    // 处理空状态
     if (filteredSites.length === 0) {
       document.getElementById('pagination-container').classList.add('hidden');
       tableBody.innerHTML = `
@@ -435,20 +276,18 @@
       document.getElementById('notify-email').checked = site.notifications.email || false;
       document.getElementById('notify-sms').checked = site.notifications.sms || false;
       document.getElementById('notify-inapp').checked = site.notifications.inapp || false;
+    } else {
+      document.getElementById('notify-email').checked = true;
+      document.getElementById('notify-sms').checked = false;
+      document.getElementById('notify-inapp').checked = true;
     }
     
     // 更新模态框
     modalTitle.textContent = '编辑网站';
     submitSiteBtn.textContent = '更新网站';
-    submitSiteBtn.innerHTML = '更新网站';
     
     // 显示模态框
-    addSiteModal.classList.remove('hidden');
-    addSiteModal.classList.add('flex');
-    setTimeout(() => {
-      modalContent.classList.remove('scale-95', 'opacity-0');
-      modalContent.classList.add('scale-100', 'opacity-100');
-    }, 10);
+    openModal();
   }
   
   // 删除网站
@@ -477,17 +316,127 @@
       return;
     }
     
-    // 在实际应用中，这里会打开一个历史记录模态框
-    // 简单处理，使用alert显示最近的10条记录
-    let historyText = `网站: ${site.name}\n最近10条历史记录:\n\n`;
-    const recentHistory = [...site.history].reverse().slice(0, 10);
+    // 创建历史记录模态框
+    const historyModal = document.createElement('div');
+    historyModal.className = 'fixed inset-0 bg-black/50 z-50 flex items-center justify-center';
+    historyModal.innerHTML = `
+      <div class="bg-white rounded-xl w-full max-w-2xl mx-4 max-h-[80vh] overflow-hidden flex flex-col">
+        <div class="p-6 border-b flex items-center justify-between">
+          <h3 class="text-xl font-bold">${site.name} 的历史记录</h3>
+          <button class="text-gray-500 hover:text-gray-700 close-history-modal">
+            <i class="fa fa-times"></i>
+          </button>
+        </div>
+        <div class="p-6 overflow-y-auto flex-grow">
+          <div class="space-y-3">
+            ${site.history.slice(-20).reverse().map(record => {
+              let statusClass = 'bg-success/10 text-success';
+              let statusText = '在线';
+              
+              if (record.status === 'offline') {
+                statusClass = 'bg-danger/10 text-danger';
+                statusText = '离线';
+              } else if (record.status === 'slow') {
+                statusClass = 'bg-warning/10 text-warning';
+                statusText = '响应缓慢';
+              }
+              
+              return `
+                <div class="p-3 rounded-lg border ${statusClass}">
+                  <div class="flex justify-between items-center">
+                    <span class="font-medium">${statusText}</span>
+                    <span class="text-sm">${new Date(record.timestamp).toLocaleString()}</span>
+                  </div>
+                  <div class="mt-1 text-sm">
+                    响应时间: ${record.responseTime || '-'}ms
+                    ${record.statusCode ? `, 状态码: ${record.statusCode}` : ''}
+                  </div>
+                </div>
+              `;
+            }).join('')}
+          </div>
+        </div>
+      </div>
+    `;
     
-    recentHistory.forEach(record => {
-      historyText += `${new Date(record.timestamp).toLocaleString()}: `;
-      historyText += `${record.status} (${record.responseTime || '-'})\n`;
+    document.body.appendChild(historyModal);
+    
+    // 添加关闭事件
+    historyModal.querySelector('.close-history-modal').addEventListener('click', () => {
+      historyModal.remove();
     });
+  }
+  
+  // 处理表单提交
+  async function handleFormSubmit(e) {
+    e.preventDefault();
     
-    alert(historyText);
+    const siteId = document.getElementById('edit-site-id').value;
+    const name = document.getElementById('site-name').value;
+    const url = document.getElementById('site-url').value;
+    const interval = parseInt(document.getElementById('check-interval').value);
+    const responseThreshold = parseInt(document.getElementById('response-threshold').value);
+    
+    // 验证URL格式
+    try {
+      new URL(url);
+    } catch (error) {
+      showNotification('请输入有效的URL（需包含http://或https://）', 'error');
+      return;
+    }
+    
+    if (siteId) {
+      // 更新现有网站
+      const index = sites.findIndex(s => s.id === siteId);
+      if (index !== -1) {
+        sites[index] = {
+          ...sites[index],
+          name,
+          url,
+          interval,
+          responseThreshold,
+          notifications: {
+            email: document.getElementById('notify-email').checked,
+            sms: document.getElementById('notify-sms').checked,
+            inapp: document.getElementById('notify-inapp').checked
+          }
+        };
+        
+        await saveSites();
+        showNotification('网站信息已更新', 'success');
+      }
+    } else {
+      // 添加新网站
+      const newSite = {
+        id: generateId(),
+        name,
+        url,
+        interval,
+        responseThreshold,
+        status: 'unknown',
+        lastChecked: null,
+        responseTime: null,
+        history: [],
+        notifications: {
+          email: document.getElementById('notify-email').checked,
+          sms: document.getElementById('notify-sms').checked,
+          inapp: document.getElementById('notify-inapp').checked
+        }
+      };
+      
+      sites.push(newSite);
+      await saveSites();
+      showNotification('新网站已添加到监测列表', 'success');
+      
+      // 立即检查新添加的网站
+      checkSiteStatus(newSite.id);
+    }
+    
+    // 关闭模态框并更新UI
+    closeModal();
+    renderSitesTable();
+    updateStatistics();
+    updateCharts();
   }
   
   // 检查单个网站状态
@@ -535,9 +484,14 @@
       await saveSites();
       
       // 检查是否需要发送通知
-      if (previousStatus !== status && (status === 'offline' || status === 'slow')) {
+      if (previousStatus && previousStatus !== status && (status === 'offline' || status === 'slow')) {
         sendNotificationForSite(site, status, previousStatus);
       }
+      
+      // 更新UI
+      renderSitesTable();
+      updateStatistics();
+      updateCharts();
       
       return result;
     } catch (error) {
@@ -547,14 +501,32 @@
       site.lastChecked = new Date().toISOString();
       
       await saveSites();
+      renderSitesTable();
+      updateStatistics();
       return { success: false, error: error.message };
     }
   }
   
   // 刷新所有网站状态
   async function refreshAllSitesStatus() {
-    for (const site of sites) {
-      await checkSiteStatus(site.id);
+    // 显示加载状态
+    refreshDataBtn.innerHTML = '<i class="fa fa-spinner fa-spin text-gray-600"></i>';
+    refreshDataBtn.disabled = true;
+    
+    try {
+      for (const site of sites) {
+        await checkSiteStatus(site.id);
+        // 避免请求过于密集
+        await new Promise(resolve => setTimeout(resolve, 500));
+      }
+      showNotification('所有网站状态已更新', 'success');
+    } catch (error) {
+      console.error('刷新网站状态失败:', error);
+      showNotification('刷新网站状态失败', 'error');
+    } finally {
+      // 恢复按钮状态
+      refreshDataBtn.innerHTML = '<i class="fa fa-refresh text-gray-600"></i>';
+      refreshDataBtn.disabled = false;
     }
   }
   
@@ -587,16 +559,13 @@
     }
     
     let message = '';
-    let icon = '';
     let type = '';
     
     if (currentStatus === 'offline') {
       message = `网站 "${site.name}" 已离线`;
-      icon = 'fa-exclamation-triangle';
       type = 'error';
     } else if (currentStatus === 'slow') {
       message = `网站 "${site.name}" 响应缓慢 (${site.responseTime}ms)`;
-      icon = 'fa-clock-o';
       type = 'warning';
     }
     
@@ -712,7 +681,6 @@
     const badge = document.getElementById('notification-badge');
     if (notificationCount > 0) {
       badge.classList.remove('hidden');
-      // 如果需要显示数字，可以修改这里
     } else {
       badge.classList.add('hidden');
     }
@@ -841,6 +809,52 @@
     responseTimeChart.update();
   }
   
+  // 分页控制
+  function goToPrevPage() {
+    if (currentPage > 1) {
+      currentPage--;
+      renderSitesTable();
+    }
+  }
+  
+  function goToNextPage() {
+    const filteredSites = getFilteredSites();
+    const totalPages = Math.ceil(filteredSites.length / sitesPerPage);
+    
+    if (currentPage < totalPages) {
+      currentPage++;
+      renderSitesTable();
+    }
+  }
+  
+  // 模态框控制
+  function openModal() {
+    addSiteModal.classList.remove('hidden');
+    addSiteModal.classList.add('flex');
+    setTimeout(() => {
+      modalContent.classList.remove('scale-95', 'opacity-0');
+      modalContent.classList.add('scale-100', 'opacity-100');
+    }, 10);
+  }
+  
+  function closeModal() {
+    modalContent.classList.remove('scale-100', 'opacity-100');
+    modalContent.classList.add('scale-95', 'opacity-0');
+    setTimeout(() => {
+      addSiteModal.classList.remove('flex');
+      addSiteModal.classList.add('hidden');
+      siteForm.reset();
+      document.getElementById('edit-site-id').value = '';
+      modalTitle.textContent = '添加新网站';
+      submitSiteBtn.textContent = '添加网站';
+    }, 300);
+  }
+  
+  // 移动端菜单控制
+  function toggleMobileMenu() {
+    mobileMenu.classList.toggle('hidden');
+  }
+  
   // 生成时间标签
   function getTimeLabels(timeRange, interval) {
     const labels = [];
@@ -930,4 +944,7 @@
       timeout = setTimeout(() => func.apply(this, args), wait);
     };
   }
+  
+  // 启动应用
+  init();
 });
